@@ -1,0 +1,98 @@
+{
+  "EVIN": {
+    "display_name": "The Night Creator",
+    "description": "You flood chats with media at 2 AM and start half the conversations. Your friends wake up to a wall of stickers, photos, and voice notes.",
+    "fun_fact": "You combine peak expressiveness with late-night energy — the rarest combo of creative + nocturnal.",
+    "traits": ["Expressive", "Verbose", "Initiator", "Night Owl"]
+  },
+  "EVID": {
+    "display_name": "The Social Butterfly",
+    "description": "You're the life of every group chat — always starting conversations, always sending something interesting. Morning, noon, or (reasonable) night.",
+    "fun_fact": "You're the friend everyone expects to see online first. Your chats never have awkward silences.",
+    "traits": ["Expressive", "Verbose", "Initiator", "Day Person"]
+  },
+  "EVRN": {
+    "display_name": "The Late-Night Reactor",
+    "description": "Your friends send a message and you reply with a voice note, 3 stickers, and a paragraph — at midnight. You react big and you react late.",
+    "fun_fact": "You rarely start conversations but when you jump in, you make up for lost time with media-rich replies.",
+    "traits": ["Expressive", "Verbose", "Reactor", "Night Owl"]
+  },
+  "EVRD": {
+    "display_name": "The Enthusiast",
+    "description": "You reply to everything with maximum effort — long messages, perfect stickers, the right GIF. You're the group chat's biggest hype person.",
+    "fun_fact": "Your reply game is unmatched. You don't just respond — you perform.",
+    "traits": ["Expressive", "Verbose", "Reactor", "Day Person"]
+  },
+  "EMIN": {
+    "display_name": "The Midnight Memer",
+    "description": "Stickers, GIFs, and voice notes do the talking for you. You keep it short but visually loud, especially after midnight.",
+    "fun_fact": "You've mastered the art of saying everything with almost no words — just perfectly timed media.",
+    "traits": ["Expressive", "Minimal", "Initiator", "Night Owl"]
+  },
+  "EMID": {
+    "display_name": "The Quick Starter",
+    "description": "You kick off conversations with a sticker or a quick voice note. Efficient, expressive, and always available during the day.",
+    "fun_fact": "You're the person who sends a single sticker that somehow says more than a paragraph could.",
+    "traits": ["Expressive", "Minimal", "Initiator", "Day Person"]
+  },
+  "EMRN": {
+    "display_name": "The Sticker Ghost",
+    "description": "You haunt the chat at odd hours with perfectly chosen reactions — a sticker here, a GIF there. Few words, maximum impact.",
+    "fun_fact": "Your sticker collection tells a story your words never will. Silent but expressive.",
+    "traits": ["Expressive", "Minimal", "Reactor", "Night Owl"]
+  },
+  "EMRD": {
+    "display_name": "The Vibe Check",
+    "description": "You keep the energy up with quick reactions and well-placed media. Not many words, but every sticker lands perfectly.",
+    "fun_fact": "You're the barometer of the group chat — your reactions set the tone.",
+    "traits": ["Expressive", "Minimal", "Reactor", "Day Person"]
+  },
+  "TVIN": {
+    "display_name": "The Midnight Novelist",
+    "description": "You write essays at 3 AM and start deep conversations when everyone else is asleep. Your messages deserve their own scroll bar.",
+    "fun_fact": "Your average message length is in the top tier. You don't text — you compose.",
+    "traits": ["Text-Purist", "Verbose", "Initiator", "Night Owl"]
+  },
+  "TVID": {
+    "display_name": "The Conversationalist",
+    "description": "You start thoughtful conversations with long, detailed messages. No stickers needed — your words carry all the weight.",
+    "fun_fact": "You're the friend people go to for real advice. Your texts read like letters.",
+    "traits": ["Text-Purist", "Verbose", "Initiator", "Day Person"]
+  },
+  "TVRN": {
+    "display_name": "The Deep Replier",
+    "description": "When you finally reply, it's a wall of text that addresses every point. You process slowly but respond thoroughly — usually at night.",
+    "fun_fact": "Your reply-to-message ratio is low, but your words-per-reply ratio is off the charts.",
+    "traits": ["Text-Purist", "Verbose", "Reactor", "Night Owl"]
+  },
+  "TVRD": {
+    "display_name": "The Analyst",
+    "description": "You respond to messages with structured, detailed replies. If texting were a job, you'd be the senior consultant.",
+    "fun_fact": "You probably re-read your messages before sending. Quality over speed, always.",
+    "traits": ["Text-Purist", "Verbose", "Reactor", "Day Person"]
+  },
+  "TMIN": {
+    "display_name": "The Shadow Initiator",
+    "description": "You start conversations with a single 'hey' at 1 AM. Minimal words, maximal mystery. No media, no fluff.",
+    "fun_fact": "You're proof that a two-letter message can carry more weight than a paragraph.",
+    "traits": ["Text-Purist", "Minimal", "Initiator", "Night Owl"]
+  },
+  "TMID": {
+    "display_name": "The Efficient Texter",
+    "description": "You say what needs to be said and nothing more. Every message is purposeful. You're the person who actually answers questions directly.",
+    "fun_fact": "Your texting style is optimized for clarity. No wasted characters.",
+    "traits": ["Text-Purist", "Minimal", "Initiator", "Day Person"]
+  },
+  "TMRN": {
+    "display_name": "The Ghost",
+    "description": "You reply with 'k' at 2 AM after leaving everyone on read for hours. Minimal effort, maximum intrigue.",
+    "fun_fact": "You've elevated the art of the one-word reply to a personality trait.",
+    "traits": ["Text-Purist", "Minimal", "Reactor", "Night Owl"]
+  },
+  "TMRD": {
+    "display_name": "The Minimalist",
+    "description": "Short replies, reasonable hours, and you let others drive the conversation. You're here, you're present, but you're efficient about it.",
+    "fun_fact": "You probably have the fastest average response time because your messages are so short.",
+    "traits": ["Text-Purist", "Minimal", "Reactor", "Day Person"]
+  }
+}

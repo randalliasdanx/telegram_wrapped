@@ -1,0 +1,13 @@
+{
+  "feature_names": [
+    "log_gap_seconds",
+    "hour_sin",
+    "hour_cos",
+    "is_different_sender",
+    "msg_length",
+    "prev_msg_length",
+    "contains_greeting",
+    "contains_question",
+    "is_first_of_day"
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "voice_note_hostage_taker": {
+    "display_name": "Voice Note Hostage Taker",
+    "description": "Why type when you can hold everyone hostage with 3-minute voice notes? Your friends have learned to fear the blue waveform.",
+    "traits": ["Vocal", "Expressive", "Unstoppable"]
+  },
+  "gif_archaeologist": {
+    "display_name": "GIF Archaeologist",
+    "description": "You dig through the GIF vault for the perfect reaction. Words are optional when you have a GIF for everything.",
+    "traits": ["Visual", "Humorous", "Resourceful"]
+  },
+  "snap_happy": {
+    "display_name": "Snap Happy",
+    "description": "You send photos of everything — food, sunsets, mirror selfies, random screenshots. Your camera roll IS the conversation.",
+    "traits": ["Visual", "Spontaneous", "In the moment"]
+  },
+  "video_virtuoso": {
+    "display_name": "Video Virtuoso",
+    "description": "Lights, camera, action! You communicate through videos and round video messages. A picture says a thousand words, but a video says a million.",
+    "traits": ["Dynamic", "Expressive", "Cinematic"]
+  },
+  "file_fiend": {
+    "display_name": "File Fiend",
+    "description": "PDFs, ZIPs, spreadsheets — you're the group's IT department. If it can be attached, you've sent it.",
+    "traits": ["Organized", "Resourceful", "Professional"]
+  },
+  "link_lobbyist": {
+    "display_name": "Link Lobbyist",
+    "description": "Always sharing articles, videos, and links. You're everyone's personal news feed and algorithm combined.",
+    "traits": ["Informed", "Curious", "Connector"]
+  },
+  "forwarding_machine": {
+    "display_name": "Forwarding Machine",
+    "description": "Why create content when you can redistribute it? Your chats are a curated feed of other people's messages.",
+    "traits": ["Curator", "Connected", "Prolific"]
+  },
+  "sticker_merchant": {
+    "display_name": "Sticker Merchant",
+    "description": "Your sticker collection is legendary. Why use words when a perfectly chosen sticker conveys the exact emotion?",
+    "traits": ["Creative", "Playful", "Collector"]
+  },
+  "novelist": {
+    "display_name": "The Novelist",
+    "description": "Short messages? Not your style. You write paragraphs that could fill a book. Each text is a chapter.",
+    "traits": ["Thoughtful", "Detailed", "Articulate"]
+  },
+  "k_person": {
+    "display_name": "The K Person",
+    "description": "k. ok. ya. cool. You've mastered the art of saying everything with almost nothing.",
+    "traits": ["Minimalist", "Efficient", "Mysterious"]
+  },
+  "midnight_dropper": {
+    "display_name": "Midnight Dropper",
+    "description": "The world sleeps but you're wide awake, dropping messages into the void at 3 AM. Sleep is for the weak.",
+    "traits": ["Nocturnal", "Deep thinker", "Night owl"]
+  },
+  "normal": {
+    "display_name": "The Normie",
+    "description": "You're a well-rounded communicator who mixes text, media, and timing in perfect harmony. Boring? No — balanced.",
+    "traits": ["Versatile", "Balanced", "Adaptive"]
+  }
+}

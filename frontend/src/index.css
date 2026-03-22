@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Plus Jakarta Sans", sans-serif;
+  --font-body: "Inter", sans-serif;
+
+  --color-telegram: #29b6f6;
+  --color-telegram-dark: #0288d1;
+  --color-telegram-light: #b3e5fc;
+  --color-streak-orange: #f59e0b;
+  --color-streak-amber: #d97706;
+  --color-dark-bg: #0f172a;
+  --color-dark-card: #1e293b;
+}
+
+@layer base {
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  /* Slightly larger base font size on desktop so everything scales up */
+  @media (min-width: 768px) {
+    html {
+      font-size: 112%;
+    }
+  }
+
+  body {
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  #root {
+    height: 100%;
+  }
+}

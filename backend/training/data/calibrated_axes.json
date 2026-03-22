@@ -1,0 +1,68 @@
+{
+  "voice_note_hostage_taker": {
+    "feature": "voice_note_rate",
+    "center": 0.0,
+    "scale": 0.000836,
+    "inverted": false
+  },
+  "gif_archaeologist": {
+    "feature": "gif_rate",
+    "center": 0.0,
+    "scale": 0.001596,
+    "inverted": false
+  },
+  "snap_happy": {
+    "feature": "photo_rate",
+    "center": 0.0,
+    "scale": 1e-06,
+    "inverted": false
+  },
+  "video_virtuoso": {
+    "feature": "video_rate",
+    "center": 0.005789,
+    "scale": 0.014887,
+    "inverted": false
+  },
+  "file_fiend": {
+    "feature": "document_rate",
+    "center": 0.0,
+    "scale": 0.006754,
+    "inverted": false
+  },
+  "link_lobbyist": {
+    "feature": "link_rate",
+    "center": 0.005153,
+    "scale": 0.019383,
+    "inverted": false
+  },
+  "forwarding_machine": {
+    "feature": "forward_rate",
+    "center": 0.00219,
+    "scale": 0.029911,
+    "inverted": false
+  },
+  "sticker_merchant": {
+    "feature": "sticker_rate",
+    "center": 0.021146,
+    "scale": 0.041384,
+    "inverted": false
+  },
+  "novelist": {
+    "feature": "avg_length",
+    "center": 28.718452,
+    "scale": 26.07119,
+    "inverted": false
+  },
+  "k_person": {
+    "feature": "avg_length",
+    "center": 17.62483,
+    "scale": 1.923127,
+    "inverted": true
+  },
+  "midnight_dropper": {
+    "feature": "late_night_rate",
+    "center": 0.0293,
+    "scale": 0.144989,
+    "inverted": false
+  }
+}

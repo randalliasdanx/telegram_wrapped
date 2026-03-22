@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+pydantic
+telethon
+python-dotenv
+scikit-learn
+numpy
+python-telegram-bot>=20.0
