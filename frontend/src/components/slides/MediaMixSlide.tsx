@@ -150,7 +150,7 @@ export function MediaMixSlide({ data, dateRange }: Props) {
                     <Icon className="w-4 h-4" style={{ color: meta.color }} />
                   </div>
                   <span className="font-display text-lg font-extrabold text-gray-900 leading-none">
-                    {formatCompact(it.count)}
+                    {it.count >= 10000 ? formatCompact(it.count) : formatNumber(it.count)}
                   </span>
                   <span className="text-[11px] text-gray-500 mt-0.5 truncate w-full">{meta.label}</span>
                 </motion.div>

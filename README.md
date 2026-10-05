@@ -4,6 +4,13 @@ A "Spotify Wrapped" for Telegram: log in with your phone number and get a swipea
 
 Try the UI without Telegram: run the frontend and open `/?demo=1`.
 
+<p>
+<img src="docs/screenshots/progress-fetching.webp" width="190" alt="Live progress">
+<img src="docs/screenshots/slide-01-total-sent.webp" width="190" alt="Total sent">
+<img src="docs/screenshots/slide-02-year-in-rhythm.webp" width="190" alt="Year in rhythm">
+<img src="docs/screenshots/slide-07-top-conversations.webp" width="190" alt="Top conversations">
+</p>
+
 ## Quick start (development)
 
 ```bash

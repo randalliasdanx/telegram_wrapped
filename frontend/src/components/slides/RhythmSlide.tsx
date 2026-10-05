@@ -51,7 +51,7 @@ export function RhythmSlide({ data, dateRange }: Props) {
         transition={{ duration: 13, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      <div className="relative min-h-full max-w-xl w-full mx-auto flex flex-col justify-center px-5 py-14">
+      <div className="relative min-h-full max-w-xl w-full mx-auto flex flex-col justify-center px-5 pt-12 pb-10">
         <motion.div {...fadeUp(0)} className="text-center mb-5">
           <span className="text-[#0288D1] uppercase tracking-widest text-xs font-semibold">
             Your Year in Rhythm
@@ -78,7 +78,7 @@ export function RhythmSlide({ data, dateRange }: Props) {
         {/* Monthly bars */}
         {months.length > 0 && (
           <motion.div {...fadeUp(0.15)} className="bg-white rounded-2xl shadow-sm border border-gray-100 px-3 pt-4 pb-2.5 mb-3">
-            <div className="flex items-end gap-1 h-32">
+            <div className="flex items-end gap-1 h-28 sm:h-32">
               {months.map((m, i) => {
                 const isPeak = i === peakIdx;
                 // Cap at 84% so the peak's count label fits above its bar.
@@ -212,7 +212,7 @@ export function RhythmSlide({ data, dateRange }: Props) {
 
         <motion.p
           {...fadeUp(1)}
-          className="mt-5 text-center text-xs uppercase tracking-widest text-gray-300 font-semibold"
+          className="mt-4 text-center text-xs uppercase tracking-widest text-gray-300 font-semibold"
         >
           {dateRange.start} – {dateRange.end}
         </motion.p>

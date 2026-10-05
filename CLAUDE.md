@@ -71,13 +71,13 @@ All classifiers are **purely deterministic** — no sklearn inference at runtime
 Uses **LLR (log-likelihood ratio) × TF-IDF distinctiveness × length bonus** to rank 2–5 word phrases. Background bigrams from `background_bigrams.json` dampen generic English phrases. Deduplication prefers longer phrases over sub-phrases.
 
 ### Frontend (`frontend/src/`)
-- **`App.tsx`** — State machine: `auth → loading → viewing`
-- **`components/LoadingScreen.tsx`** — Connects to SSE progress endpoint, transitions to viewing after `phase=done`
-- **`components/WrappedViewer.tsx`** — 12-slide deck with swipe/tap navigation (Framer Motion). Tap right half = next, tap left half = prev.
-- **`components/slides/`** — One component per stat slide
-- **`hooks/useSSE.ts`** — `EventSource` wrapper that closes on `done` or `error` phase
+- **`App.tsx`** — State machine: `auth → progress → viewing`. The session id is kept in localStorage (`lib/storage.ts`) so a refresh resumes via `/status`; `?session=` deep links and `/?demo=1` (mock data from `data/demoData.ts`, dynamically imported) also land in the viewer.
+- **`components/ProgressScreen.tsx`** + **`hooks/usePipelineProgress.ts`** — live SSE progress (falls back to polling `/status` every 2 s), phase checklist, messages-analysed counter, queue position/ETA, archetype guessing game, optional bot CTA; opens the deck automatically on `done`.
+- **`components/WrappedViewer.tsx`** — slide list built from the data (`lib/slideData.ts` decides which optional slides have data), swipe/tap/keyboard navigation, PNG downloads (html2canvas lazy-loaded).
+- **`components/slides/`** — one component per stat slide (incl. `RhythmSlide`, `ReplySpeedSlide`, `MediaMixSlide`); shared `AnimatedNumber`, `ChatAvatar`; helpers in `lib/format.ts`
 - **`api/client.ts`** — All API calls; uses `/api` base (proxied by Vite to `:8000` in dev)
-- **`api/types.ts`** — TypeScript types mirroring `backend/app/schemas.py`
+- **`api/types.ts`** — TypeScript types mirroring `backend/app/schemas.py` (new fields optional so older results still render)
+- Screenshots of every slide and the progress states: `docs/screenshots/`
 
 ### Rate Limiting
 `check_send_code_rate` (store-backed, shared across instances) limits `POST /auth/send-code` to `RATE_LIMIT_SEND_CODE` (10) per IP and `RATE_LIMIT_SEND_CODE_PHONE` (3) per phone number per 10 minutes. Set `TRUST_PROXY=1` behind your own proxy to use `X-Forwarded-For`.

@@ -158,29 +158,51 @@ export function TotalSentSlide({ data, dateRange }: Props) {
 
         {data.accuracy && <AccuracyBadge accuracy={data.accuracy} />}
 
-        <div className={`grid gap-3 w-full ${stats.length >= 3 ? "grid-cols-3" : stats.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
-          {stats.map((stat, i) => {
-            const Icon = stat.icon;
-            return (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 40 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.85 + i * 0.1, duration: 0.5, type: "spring", stiffness: 120, damping: 18 }}
-                whileHover={{ y: -3, boxShadow: "0 8px 32px rgba(2,136,209,0.12)" }}
-                className="bg-white rounded-2xl shadow-md p-3.5 cursor-default flex flex-col items-center text-center"
-              >
-                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center mb-2">
-                  <Icon className="w-[18px] h-[18px] text-[#0288D1]" />
-                </div>
-                <p className="text-xl font-bold text-gray-900 font-display leading-none">{stat.value}</p>
-                <span className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mt-1.5 leading-tight">
-                  {stat.label}
-                </span>
-              </motion.div>
-            );
-          })}
-        </div>
+        {stats.length === 1 ? (
+          // Older results: just the daily average, as a wide card.
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.85, duration: 0.5, type: "spring", stiffness: 120, damping: 18 }}
+            className="bg-white rounded-2xl shadow-md p-5 w-full flex items-start gap-4"
+          >
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+              <BarChart3 className="w-5 h-5 text-[#0288D1]" />
+            </div>
+            <div>
+              <span className="text-xs uppercase tracking-widest text-gray-400 font-semibold">Daily Average</span>
+              <p className="text-xl font-bold text-gray-900 mt-0.5">~{formatNumber(data.daily_average)} messages</p>
+              <div className="flex items-center gap-1.5 mt-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                <span className="text-xs text-gray-500">That's a lot of chatting!</span>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <div className={`grid gap-3 w-full ${stats.length >= 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+            {stats.map((stat, i) => {
+              const Icon = stat.icon;
+              return (
+                <motion.div
+                  key={stat.label}
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.85 + i * 0.1, duration: 0.5, type: "spring", stiffness: 120, damping: 18 }}
+                  whileHover={{ y: -3, boxShadow: "0 8px 32px rgba(2,136,209,0.12)" }}
+                  className="bg-white rounded-2xl shadow-md p-3.5 cursor-default flex flex-col items-center text-center"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center mb-2">
+                    <Icon className="w-[18px] h-[18px] text-[#0288D1]" />
+                  </div>
+                  <p className="text-xl font-bold text-gray-900 font-display leading-none">{stat.value}</p>
+                  <span className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mt-1.5 leading-tight">
+                    {stat.label}
+                  </span>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
 
         {activeDays > 0 && (
           <motion.p

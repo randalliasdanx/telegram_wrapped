@@ -58,17 +58,12 @@ export function ReplySpeedSlide({ data, dateRange }: Props) {
       className="w-full h-full relative overflow-y-auto overflow-x-hidden"
       style={{ background: "linear-gradient(180deg, #E1F5FE 0%, #F5FBFF 45%, #FFFFFF 100%)" }}
     >
-      {/* Speed lines */}
-      {[9, 14, 19].map((top, i) => (
-        <motion.div
-          key={top}
-          className="absolute h-[2px] rounded-full bg-[#29B6F6]/25 pointer-events-none"
-          style={{ top: `${top}%`, width: 60 + i * 20 }}
-          initial={{ x: "110vw" }}
-          animate={{ x: "-40vw" }}
-          transition={{ duration: 2.2 + i * 0.4, repeat: Infinity, delay: i * 0.6, ease: "linear" }}
-        />
-      ))}
+      <motion.div
+        className="absolute top-[-8%] right-[-20%] w-80 h-80 rounded-full pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(41,182,246,0.16) 0%, transparent 70%)" }}
+        animate={{ x: [0, -12, 0], y: [0, 14, 0] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+      />
 
       <div className="relative min-h-full max-w-xl w-full mx-auto flex flex-col items-center justify-center px-5 py-14 text-center">
         <motion.span {...fadeUp(0)} className="text-[#0288D1] uppercase tracking-widest text-xs font-semibold">

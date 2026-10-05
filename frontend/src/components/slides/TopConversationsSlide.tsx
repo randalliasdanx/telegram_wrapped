@@ -11,18 +11,19 @@ interface Props {
 
 export function TopConversationsSlide({ data, dateRange }: Props) {
   const topFive = data.top_chats.slice(0, 5);
-  const maxCount = Math.max(1, ...topFive.map((c) => c.total));
+  // Bars follow the % column (the ranking), so #1 always has the longest bar.
+  const maxPct = Math.max(0.01, ...topFive.map((c) => c.pct));
   // Newer results tell us how much of each chat was *you*; older ones don't.
-  const hasSplit = topFive.some((c) => c.sent_share != null && c.sent != null);
+  const hasSentShare = topFive.some((c) => c.sent_share != null && c.sent != null);
 
   return (
     <div className="w-full h-full bg-white overflow-y-auto overflow-x-hidden">
-      <div className="min-h-full max-w-xl w-full mx-auto flex flex-col items-center justify-center px-5 py-14">
+      <div className="min-h-full max-w-xl w-full mx-auto flex flex-col items-center justify-center px-5 pt-12 pb-10">
         <motion.span
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="text-[#0288D1] uppercase tracking-widest text-xs font-semibold mb-5"
+          className="text-[#0288D1] uppercase tracking-widest text-xs font-semibold mb-4"
         >
           Telegram Wrapped
         </motion.span>
@@ -53,8 +54,7 @@ export function TopConversationsSlide({ data, dateRange }: Props) {
         <div className="w-full flex flex-col gap-2.5">
           {topFive.map((chat, i) => {
             const isFirst = i === 0;
-            const barWidth = (chat.total / maxCount) * 100;
-            const youShare = Math.min(100, Math.max(0, chat.sent_share ?? 0));
+            const barWidth = (chat.pct / maxPct) * 100;
 
             return (
               <motion.div
@@ -95,24 +95,16 @@ export function TopConversationsSlide({ data, dateRange }: Props) {
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                     <motion.div
-                      className="h-1.5 rounded-full flex overflow-hidden"
+                      className="h-1.5 rounded-full"
+                      style={{ backgroundColor: isFirst ? "#0288D1" : "#94a3b8" }}
                       initial={{ width: 0 }}
                       animate={{ width: `${barWidth}%` }}
                       transition={{ delay: 0.6 + i * 0.1, duration: 0.6, ease: "easeOut" }}
-                    >
-                      {hasSplit ? (
-                        <>
-                          <div className="h-full" style={{ width: `${youShare}%`, backgroundColor: isFirst ? "#0288D1" : "#64748b" }} />
-                          <div className="h-full flex-1" style={{ backgroundColor: isFirst ? "#81D4FA" : "#cbd5e1" }} />
-                        </>
-                      ) : (
-                        <div className="h-full w-full" style={{ backgroundColor: isFirst ? "#0288D1" : "#94a3b8" }} />
-                      )}
-                    </motion.div>
+                    />
                   </div>
                   <span className="text-xs text-gray-400 mt-0.5 inline-block">
                     {formatNumber(chat.total)} messages
-                    {chat.sent_share != null && hasSplit && (
+                    {chat.sent_share != null && hasSentShare && (
                       <> · <span className={isFirst ? "text-[#0288D1] font-semibold" : "text-gray-500 font-medium"}>you sent {Math.round(chat.sent_share)}%</span></>
                     )}
                   </span>
@@ -122,18 +114,14 @@ export function TopConversationsSlide({ data, dateRange }: Props) {
           })}
         </div>
 
-        {hasSplit && (
+        {hasSentShare && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.1, duration: 0.5 }}
-            className="w-full flex items-center justify-between mt-3 text-[11px] text-gray-400"
+            className="w-full text-center mt-3 text-[11px] text-gray-400"
           >
-            <span>% = share of everything you sent</span>
-            <span className="flex items-center gap-2.5">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#0288D1]" />you</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#81D4FA]" />them</span>
-            </span>
+            <span>% = share of all the messages you sent</span>
           </motion.div>
         )}
 

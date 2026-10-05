@@ -324,9 +324,11 @@ export function ProgressScreen({ sessionId, phone, onReady, onRestart }: Props) 
                 <span className="tabular-nums">{pct}%</span>
                 <span className="flex items-center gap-1 tabular-nums">
                   <Timer className="w-3.5 h-3.5" />
-                  {progress?.eta_seconds != null && !isDone
-                    ? formatEta(progress.eta_seconds)
-                    : `${formatDuration(elapsed)} elapsed`}
+                  {isDone
+                    ? "All done"
+                    : progress?.eta_seconds != null
+                      ? formatEta(progress.eta_seconds)
+                      : `${formatDuration(elapsed)} elapsed`}
                 </span>
               </div>
             </>

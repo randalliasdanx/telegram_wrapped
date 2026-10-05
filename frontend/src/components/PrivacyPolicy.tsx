@@ -8,15 +8,15 @@ interface Props {
 const sections = [
   {
     title: "What We Access",
-    body: "When you authenticate, we temporarily connect to Telegram's API on your behalf to read message metadata (counts, timestamps, sender IDs) and a statistical sample of message text. We never access your media files, photos, or documents.",
+    body: "When you authenticate, we temporarily connect to Telegram's API on your behalf to read the messages you sent in the last year (text, timestamps, media type, reactions), message counts per chat, and short timing samples from your top private chats. We download only small profile pictures of your top chats and thumbnails of your top stickers — never your photos, videos or documents.",
   },
   {
     title: "What We Store",
-    body: "Nothing. We do not store your messages, contacts, media, or any personal data on our servers. All processing happens entirely in memory and is discarded within minutes of completion.",
+    body: "We never store your messages, contacts or media. Messages are processed in memory and discarded as soon as your Wrapped is computed. The finished Wrapped (the summary you see) is kept for up to 6 hours so you can open it again, then deleted automatically.",
   },
   {
     title: "What We Return",
-    body: "Only aggregated, anonymous statistics: total message counts, top chat names, emoji frequencies, hourly activity patterns, and similar summaries. No raw message content is ever sent to your browser or stored anywhere.",
+    body: "Aggregated statistics — message counts, top chat names, emoji and phrase frequencies, activity patterns and similar summaries — plus the text of your single most-reacted message. Nothing else from your chats is sent to your browser.",
   },
   {
     title: "Third-Party Sharing",
@@ -24,11 +24,11 @@ const sections = [
   },
   {
     title: "Session Lifecycle",
-    body: "Your authenticated session is automatically destroyed within 15 minutes. Temporary session files are deleted immediately after processing completes or if an error occurs.",
+    body: "Your login is held only in encrypted form and never written to disk. As soon as your Wrapped is ready we log out of Telegram, so the session disappears from your Active Sessions. If processing never completes, the login is revoked automatically within 30 minutes.",
   },
   {
     title: "Your Rights",
-    body: "You can close the browser tab at any time to terminate processing. No data persists after your session ends. You have full control over when and whether to share your generated Wrapped summary.",
+    body: "You can also end the session yourself at any time from Telegram → Settings → Devices. Nothing about you persists after your Wrapped expires, and you decide whether to share your generated summary.",
   },
   {
     title: "Open Source",
