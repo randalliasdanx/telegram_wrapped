@@ -109,6 +109,8 @@ class DialogData:
     history_batches: list[list[HistoryMsg]] = field(default_factory=list)
     fetched_unique: int = 0
     complete: bool = False
+    filter_ignored: bool = False  # Telegram ignored from_id=self here
+    both_sides_count: int = 0  # the count Telegram returned when it ignored from_id
 
 
 @dataclass
@@ -117,6 +119,7 @@ class Collected:
     sticker_docs: dict[int, Any] = field(repr=False, default_factory=dict)
     exact: bool = True
     api_calls: int = 0
+    total_exact: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -289,7 +292,12 @@ class Fetcher:
         progress: ProgressFn,
         page_budget: int,
         raw_client: TelegramClient | None = None,
+        read_seconds: float = 75,
+        conversation_seconds: float = 20,
     ) -> None:
+        self.read_seconds = read_seconds
+        self.conversation_seconds = conversation_seconds
+        self.filter_ignored = 0
         self.client = client
         self.raw_client = raw_client or client
         self.thr = throttle
@@ -383,7 +391,30 @@ class Fetcher:
             sticker_docs=self.sticker_docs,
             exact=exact and self.count_failures == 0,
             api_calls=self.thr.calls,
+            total_exact=self.count_failures == 0 and self.filter_ignored == 0,
         )
+
+    def _own_records(self, msgs: list[Any], d: DialogData, lo: datetime, hi: datetime, seen: set[int]) -> tuple[list[MsgRecord], int, int]:
+        """Convert a from_id=self search page into records.
+
+        Returns (records, raw_new, foreign): ``raw_new`` counts every new
+        message id (the denominator for weights), ``foreign`` how many were
+        not sent by the user — non-zero means Telegram ignored ``from_id``.
+        """
+        out: list[MsgRecord] = []
+        raw_new = foreign = 0
+        for m in msgs:
+            if m.id in seen:
+                continue
+            seen.add(m.id)
+            raw_new += 1
+            if not getattr(m, "out", True):
+                foreign += 1
+                continue
+            rec = to_record(m, d.name, self.sticker_docs)
+            if rec and lo <= rec.date <= hi:
+                out.append(rec)
+        return out, raw_new, foreign
 
     async def _count_phase(self, dialogs: list[DialogData]) -> None:
         total = len(dialogs)
@@ -399,15 +430,24 @@ class Fetcher:
                 log.warning("Count failed for a dialog: %s: %s", type(e).__name__, e)
                 self.count_failures += 1
                 count, msgs = 0, []
-            d.sent_count = count
-            seen: set[int] = set()
-            for m in msgs:
-                rec = to_record(m, d.name, self.sticker_docs)
-                if rec and rec.id not in seen and self.start <= rec.date <= self.end:
-                    seen.add(rec.id)
-                    d.records.append(rec)
+            records, raw, foreign = self._own_records(msgs, d, self.start, self.end, set())
+            d.records = records
+            d.complete = count <= raw
+            if foreign:
+                # Telegram returned everyone's messages: the count is for both
+                # sides. Estimate the user's share from this page until the
+                # read phase measures it per time window.
+                self.filter_ignored += 1
+                d.filter_ignored = True
+                d.both_sides_count = count
+                d.sent_count = round(count * (raw - foreign) / max(raw, 1))
+                log.warning(
+                    "from_id filter ignored in a %s chat (%d/%d foreign on first page)",
+                    "private" if d.is_private else "group", foreign, raw,
+                )
+            else:
+                d.sent_count = count
             d.fetched_unique = len(d.records)
-            d.complete = count <= len(msgs)
             self.analyzed += len(d.records)
             done += 1
             if done % 10 == 0 or done == total:
@@ -427,115 +467,153 @@ class Fetcher:
             self.page_budget,
         )
         if not plan.per_dialog:
-            return True
+            return self.filter_ignored == 0
 
         grand = sum(d.sent_count for d in dialogs)
         log.info(
-            "Fetch plan: %s mode, %d dialogs, %d sent messages",
-            "exact" if plan.exact else "estimated", len(plan.per_dialog), grand,
+            "Fetch plan: %s mode, %d of %d chats need reading, %d sent messages, %ds budget",
+            "exact" if plan.exact else "estimated", len(plan.per_dialog), len(dialogs), grand,
+            self.read_seconds,
         )
-        # Dialogs with a plan are refetched window by window; drop the
-        # count-phase page so nothing is double counted.
+        # The read budget starts now: slow counting must not eat it.
+        self.thr.set_deadline(self.read_seconds)
+
+        # Count-phase pages are kept aside as a fallback sample; windows
+        # replace them when they arrive.
+        fallback: dict[int, list[MsgRecord]] = {}
         for i in plan.per_dialog:
             self.analyzed -= len(dialogs[i].records)
+            fallback[i] = dialogs[i].records
             dialogs[i].records = []
 
-        jobs = []
-        for i, (n_windows, max_pages) in plan.per_dialog.items():
-            for w_start, w_end in window_bounds(self.start, self.end, n_windows):
-                jobs.append((dialogs[i], w_start, w_end, max_pages))
-        # Interleave dialogs so the deadline cuts evenly across chats
-        random.shuffle(jobs)
+        @dataclass
+        class Window:
+            i: int
+            lo: datetime
+            hi: datetime
+            max_pages: int | None
+            count: int | None = None
+            raw: int = 0
+            pages: int = 0
+            offset_id: int = 0
+            done: bool = False
+            records: list[MsgRecord] = field(default_factory=list)
+            seen: set[int] = field(default_factory=set)
+
+        windows = [
+            Window(i, lo, hi, max_pages)
+            for i, (n, max_pages) in plan.per_dialog.items()
+            for lo, hi in window_bounds(self.start, self.end, n)
+        ]
+        random.shuffle(windows)  # interleave chats so a cut is spread evenly
 
         pages_total = sum(
-            (mp if mp is not None else math.ceil(dialogs[i].sent_count / PAGE_SIZE / n))
-            * n
+            (mp if mp is not None else math.ceil(dialogs[i].sent_count / PAGE_SIZE / n)) * n
             for i, (n, mp) in plan.per_dialog.items()
         ) or 1
         pages_done = 0
-        incomplete = False
-        window_counts: dict[int, list[tuple[int, int]]] = {}
+        stopped = False
 
-        async def window_job(d: DialogData, w_start: datetime, w_end: datetime, max_pages: int | None) -> None:
-            nonlocal pages_done, incomplete
-            fetched: list[MsgRecord] = []
-            seen: set[int] = set()  # raw ids, including service messages
-            window_count = None
-            offset_id = 0
-            pages = 0
+        async def next_page(w: Window) -> None:
+            nonlocal pages_done, stopped
+            if w.done or stopped:
+                return
+            d = dialogs[w.i]
             try:
-                while max_pages is None or pages < max_pages:
-                    count, msgs = await self._search(
-                        d.peer, from_self=True, min_date=w_start, max_date=w_end, offset_id=offset_id,
-                    )
-                    pages += 1
-                    pages_done += 1
-                    if window_count is None:
-                        window_count = count
-                    new = 0
-                    for m in msgs:
-                        if m.id in seen:
-                            continue
-                        seen.add(m.id)
-                        rec = to_record(m, d.name, self.sticker_docs)
-                        if rec and w_start <= rec.date <= w_end:
-                            fetched.append(rec)
-                            new += 1
-                    self.analyzed += new
-                    if not msgs or len(seen) >= (window_count or 0):
-                        break
-                    offset_id = min(m.id for m in msgs)
-                    if pages_done % 5 == 0:
-                        await self._emit({
-                            "phase": "fetching",
-                            "progress": min(pages_done, pages_total),
-                            "total": pages_total,
-                            "message": "Reading your messages…",
-                        })
+                count, msgs = await self._search(
+                    d.peer, from_self=True, min_date=w.lo, max_date=w.hi, offset_id=w.offset_id,
+                )
             except BudgetExceeded:
-                incomplete = True
+                stopped = True
+                return
             except Exception as e:
                 log.warning("Window fetch failed: %s: %s", type(e).__name__, e)
-                incomplete = True
-            if window_count is None:
-                return  # never reached this window; scaled up below
-            got = len(seen)
-            if not fetched:
-                window_counts.setdefault(id(d), []).append((window_count, 0))
+                w.done = True
                 return
-            weight = window_count / got if window_count > got else 1.0
-            exact = weight == 1.0
-            for rec in fetched:
-                rec.weight = weight
-                rec.exact = exact
-            d.records.extend(fetched)
-            window_counts.setdefault(id(d), []).append((window_count, got))
-            if not exact:
-                incomplete = True
+            pages_done += 1
+            w.pages += 1
+            if w.count is None:
+                w.count = count
+            recs, raw, _ = self._own_records(msgs, d, w.lo, w.hi, w.seen)
+            w.records.extend(recs)
+            w.raw += raw
+            self.analyzed += len(recs)
+            if not msgs or w.raw >= (w.count or 0) or (w.max_pages is not None and w.pages >= w.max_pages):
+                w.done = True
+            else:
+                w.offset_id = min(m.id for m in msgs)
+            if pages_done % 5 == 0:
+                await self._emit({
+                    "phase": "fetching",
+                    "progress": min(pages_done, pages_total),
+                    "total": pages_total,
+                    "message": "Reading your messages…",
+                })
 
-        await asyncio.gather(*(window_job(*job) for job in jobs))
+        # Breadth first: one page from every window per round, so a deadline
+        # still leaves a sample spread across the whole year and every chat.
+        while not stopped:
+            pending = [w for w in windows if not w.done]
+            if not pending:
+                break
+            await asyncio.gather(*(next_page(w) for w in pending))
 
-        # Windows that were never reached (deadline / flood) are represented
-        # by scaling the reached windows up to the dialog's exact total.
-        for i in plan.per_dialog:
+        incomplete = stopped
+        by_dialog: dict[int, list[Window]] = {}
+        for w in windows:
+            by_dialog.setdefault(w.i, []).append(w)
+
+        for i, ws in by_dialog.items():
             d = dialogs[i]
+            reached = [w for w in ws if w.count is not None]
             unique: dict[int, MsgRecord] = {}
-            for rec in d.records:  # windows share boundary seconds
-                unique.setdefault(rec.id, rec)
-            d.records = list(unique.values())
-            covered = sum(c for c, _ in window_counts.get(id(d), []))
-            d.fetched_unique = len(d.records)
-            if d.records and covered and covered < d.sent_count:
+            covered = 0
+            for w in reached:
+                covered += w.count or 0
+                # weight = messages in window / messages actually seen there
+                weight = (w.count / w.raw) if w.raw and w.count and w.count > w.raw else 1.0
+                for rec in w.records:
+                    rec.weight = weight
+                    rec.exact = weight == 1.0 and not d.filter_ignored
+                    unique.setdefault(rec.id, rec)  # windows share boundary seconds
+                if weight != 1.0:
+                    incomplete = True
+            records = list(unique.values())
+            # Windows report counts in the same unit as the dialog total:
+            # both sides when Telegram ignored from_id, the user's otherwise.
+            dialog_total = d.both_sides_count if d.filter_ignored else d.sent_count
+            if d.filter_ignored and records and covered:
+                # Weighted own records estimate what the user sent in the
+                # reached windows; extrapolate to unreached windows.
+                own = sum(r.weight for r in records)
+                d.sent_count = round(own * max(dialog_total / covered, 1.0))
+            if not records:
+                # Nothing read for this chat: fall back to its newest messages
+                records = fallback.get(i, [])
+                self.analyzed += len(records)
+                if records:
+                    w8 = d.sent_count / len(records)
+                    for rec in records:
+                        rec.weight, rec.exact = w8, w8 == 1.0
+                    incomplete = incomplete or w8 != 1.0
+            elif covered and covered < dialog_total:
+                # Some windows never reached: scale the reached ones up
                 incomplete = True
-                scale = d.sent_count / covered
-                for rec in d.records:
+                scale = dialog_total / covered
+                for rec in records:
                     rec.weight *= scale
                     rec.exact = False
-            d.complete = d.fetched_unique >= d.sent_count
-        return plan.exact and not incomplete
+            d.records = records
+            d.fetched_unique = len(records)
+            d.complete = not incomplete and d.fetched_unique >= d.sent_count
+
+        if stopped:
+            log.info("Read budget reached after %d pages; finishing with estimates", pages_done)
+        return plan.exact and not incomplete and self.filter_ignored == 0
 
     async def _conversation_phase(self, dialogs: list[DialogData]) -> None:
         await self._emit({"phase": "conversations", "message": "Looking at how your conversations flow…"})
+        self.thr.set_deadline(self.conversation_seconds)
         top_private = [d for d in dialogs if d.is_private][:CONVERSATION_DIALOGS]
         top_any = dialogs[:TOTALS_FOR_TOP]
 

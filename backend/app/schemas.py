@@ -83,6 +83,7 @@ class ReplySpeed(BaseModel):
 class Accuracy(BaseModel):
     mode: str  # "exact" (every sent message analysed) or "estimated"
     coverage_pct: float  # % of the user's sent messages analysed directly
+    total_exact: bool = True  # False when the sent total had to be estimated
     messages_analyzed: int
     chats_analyzed: int
     takeout: bool

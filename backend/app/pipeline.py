@@ -175,13 +175,15 @@ async def _run_phases(
     fetcher = Fetcher(
         scan_client, throttle, start, end, progress,
         page_budget=settings["page_budget"], raw_client=raw_client,
+        read_seconds=settings["deadline"],
     )
-    throttle.set_deadline(settings["deadline"])
     collected = await fetcher.collect(candidates)
     log.info(
-        "Collected %d dialogs, %d records, %d API calls, %d flood waits (%.0fs) in %.1fs",
-        len(collected.dialogs), fetcher.analyzed, throttle.calls,
-        throttle.flood_waits, throttle.flood_seconds, time.monotonic() - t0,
+        "Collected %d dialogs, %d sent (counted), %d read, %d API calls, %d flood waits (%.0fs), "
+        "from_id ignored in %d chats, %.1fs",
+        len(collected.dialogs), sum(d.sent_count for d in collected.dialogs), fetcher.analyzed,
+        throttle.calls, throttle.flood_waits, throttle.flood_seconds, fetcher.filter_ignored,
+        time.monotonic() - t0,
     )
 
     await progress({"phase": "computing", "message": "Crunching the numbers…", "messages_analyzed": fetcher.analyzed})

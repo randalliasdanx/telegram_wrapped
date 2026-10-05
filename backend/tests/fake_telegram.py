@@ -7,6 +7,7 @@ so tests can check both accuracy and the number of API calls.
 """
 from __future__ import annotations
 
+import asyncio
 import random
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -104,7 +105,16 @@ def basic_group(cid: int, title: str, date: datetime) -> Chat:
 
 
 class FakeClient:
-    def __init__(self, chats: list[FakeChat], flood_every: int = 0, flood_seconds: int = 1) -> None:
+    def __init__(
+        self,
+        chats: list[FakeChat],
+        flood_every: int = 0,
+        flood_seconds: int = 1,
+        latency: float = 0.0,
+        ignore_from_id_in_private: bool = False,
+    ) -> None:
+        self.latency = latency
+        self.ignore_from_id_in_private = ignore_from_id_in_private
         self.chats = {c.key: c for c in chats}
         self._order = chats
         self.calls: dict[str, int] = {"search": 0, "history": 0, "dialogs": 0, "download": 0}
@@ -129,11 +139,16 @@ class FakeClient:
     async def __call__(self, request: Any) -> Any:
         assert isinstance(request, SearchRequest)
         self.calls["search"] += 1
+        if self.latency:
+            await asyncio.sleep(self.latency)
         self._maybe_flood()
         chat = self._chat_for_peer(request.peer)
+        apply_from = request.from_id is not None and not (
+            self.ignore_from_id_in_private and isinstance(request.peer, InputPeerUser)
+        )
         matching = [
             m for m in chat.messages
-            if (request.from_id is None or m.out)
+            if (not apply_from or m.out)
             and (request.min_date is None or m.date >= request.min_date)
             and (request.max_date is None or m.date <= request.max_date)
         ]
@@ -143,6 +158,8 @@ class FakeClient:
 
     async def get_messages(self, entity: Any, limit: int = 100, offset_date: datetime | None = None) -> list[FakeMsg]:
         self.calls["history"] += 1
+        if self.latency:
+            await asyncio.sleep(self.latency)
         self._maybe_flood()
         chat = self.chats[entity.id]
         older = [m for m in reversed(chat.messages) if offset_date is None or m.date < offset_date]

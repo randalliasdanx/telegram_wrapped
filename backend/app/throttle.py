@@ -50,7 +50,7 @@ class AdaptiveThrottle:
         min_limit: int = 1,
         delay: float = 0.0,
         grow_every: int = 20,
-        max_wait: float = 30.0,
+        max_wait: float | None = None,
         deadline: float | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -112,7 +112,8 @@ class AdaptiveThrottle:
         remaining = self._resume_at - self._clock()
         if remaining <= 0:
             return
-        if not essential and (remaining > self.max_wait or self._would_cross_deadline(remaining)):
+        too_long = self.max_wait is not None and remaining > self.max_wait
+        if not essential and (too_long or self._would_cross_deadline(remaining)):
             raise BudgetExceeded(f"paused for {remaining:.0f}s")
         await asyncio.sleep(remaining)
 

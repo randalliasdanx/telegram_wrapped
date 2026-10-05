@@ -237,6 +237,7 @@ def compute_stats(
     accuracy = {
         "mode": "exact" if collected.exact else "estimated",
         "coverage_pct": round(min(fetched / max(grand_total, 1), 1.0) * 100, 1),
+        "total_exact": collected.total_exact,
         "messages_analyzed": fetched,
         "chats_analyzed": len(dialogs),
         "takeout": takeout,

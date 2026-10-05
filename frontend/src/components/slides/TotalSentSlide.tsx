@@ -26,7 +26,7 @@ function AccuracyBadge({ accuracy }: { accuracy: NonNullable<WrappedData["accura
       <Icon className="w-3.5 h-3.5" />
       {exact
         ? "Exact count · every message analysed"
-        : `Estimated from ${Math.round(accuracy.coverage_pct)}% of messages`}
+        : `${accuracy.total_exact === false ? "Estimated total" : "Exact total"} · details from ${formatCoverage(accuracy.coverage_pct)} of messages`}
     </motion.div>
   );
 }
@@ -222,4 +222,9 @@ export function TotalSentSlide({ data, dateRange }: Props) {
       </div>
     </div>
   );
+}
+
+function formatCoverage(pct: number): string {
+  if (pct > 0 && pct < 1) return "<1%";
+  return `${Math.round(pct)}%`;
 }

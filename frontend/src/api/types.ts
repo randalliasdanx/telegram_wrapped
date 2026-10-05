@@ -87,6 +87,7 @@ export interface Accuracy {
   mode: "exact" | "estimated";
   /** % of the user's sent messages analysed directly. */
   coverage_pct: number;
+  total_exact?: boolean; // false when Telegram ignored the from-self filter somewhere
   messages_analyzed: number;
   chats_analyzed: number;
   takeout: boolean;

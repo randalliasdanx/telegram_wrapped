@@ -63,6 +63,7 @@ def test_exact_mode_matches_ground_truth():
 
     assert result["accuracy"]["mode"] == "exact"
     assert result["accuracy"]["coverage_pct"] == 100.0
+    assert result["accuracy"]["total_exact"] is True
     assert result["grand_total"] == truth["grand_total"]
     assert result["media_totals"]["photos"] == truth["photos"]
     assert result["stickers_sent"] == truth["stickers"]
@@ -226,7 +227,7 @@ def test_throttle_optional_work_respects_budget():
     from telethon import errors
 
     async def scenario():
-        thr = AdaptiveThrottle(max_wait=5)
+        thr = AdaptiveThrottle(max_wait=5)  # explicit cap
         async def long_flood():
             raise errors.FloodWaitError(request=None, capture=60)
         with pytest.raises(errors.FloodWaitError):
@@ -254,3 +255,57 @@ def test_same_named_chats_do_not_merge():
     result = run(FakeClient(chats))
     names = sorted(c["name"] for c in result["top_chats"])
     assert names == ["Alex", "Alex (2)"]
+
+
+def test_slow_counting_still_leaves_time_to_read(monkeypatch):
+    """Regression: the read deadline used to start before counting, so a slow
+    count phase (rate limits) left no time to read -> "Estimated from 0%"."""
+    # 19 chats / 8 parallel x 0.4 s latency: counting alone takes ~1.2 s > the 1 s budget
+    monkeypatch.setattr(pipeline, "STANDARD", dict(pipeline.STANDARD, deadline=1, page_budget=40))
+    chats = _world(seed=11, scale=3)
+    truth = _truth(chats)
+    result = run(FakeClient(chats, latency=0.4))
+    acc = result["accuracy"]
+    assert result["grand_total"] == truth["grand_total"]
+    assert acc["coverage_pct"] >= 5, acc
+    # Distributions must reflect the whole account, not just the small chats
+    est = sum(result["hourly_distribution"].values())
+    assert abs(est - truth["grand_total"]) / truth["grand_total"] < 0.1
+
+
+def test_ignored_from_filter_is_detected_and_corrected():
+    """If Telegram ignores from_id (e.g. in private chats), other people's
+    messages must not be counted as the user's."""
+    chats = _world(seed=13)
+    truth = _truth(chats)
+    result = run(FakeClient(chats, ignore_from_id_in_private=True))
+    err = abs(result["grand_total"] - truth["grand_total"]) / truth["grand_total"]
+    assert err < 0.1, (result["grand_total"], truth["grand_total"])
+    alice = next(c for c in result["top_chats"] if c["name"] == "Alice")
+    assert abs(alice["sent"] - truth["per_chat"]["Alice"]) / truth["per_chat"]["Alice"] < 0.15
+    assert result["accuracy"]["mode"] == "estimated"
+    assert result["accuracy"]["total_exact"] is False
+
+
+def test_ignored_filter_with_tight_budget_extrapolates(monkeypatch):
+    monkeypatch.setattr(pipeline, "STANDARD", dict(pipeline.STANDARD, page_budget=15))
+    chats = _world(seed=17, scale=3)
+    truth = _truth(chats)
+    result = run(FakeClient(chats, ignore_from_id_in_private=True))
+    err = abs(result["grand_total"] - truth["grand_total"]) / truth["grand_total"]
+    assert err < 0.12, (result["grand_total"], truth["grand_total"])
+    assert result["accuracy"]["mode"] == "estimated"
+
+
+def test_long_flood_wait_inside_budget_keeps_reading():
+    from telethon import errors
+
+    async def scenario():
+        thr = AdaptiveThrottle()
+        thr.set_deadline(60)
+        thr._on_flood(0.3)  # a pause well inside the deadline: optional calls wait, not abort
+        async def ok():
+            return 1
+        return await thr.run(ok)
+
+    assert asyncio.run(scenario()) == 1
