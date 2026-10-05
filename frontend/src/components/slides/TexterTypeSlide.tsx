@@ -1,6 +1,9 @@
 import { motion } from "framer-motion";
+import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import type { WrappedData, DateRange } from "../../api/types";
+import { ARCHETYPES } from "../../data/archetypes";
+import { GUESS_KEY, storageGet } from "../../lib/storage";
 
 interface Props {
   data: WrappedData;
@@ -45,6 +48,11 @@ export function TexterTypeSlide({ data, dateRange }: Props) {
   const code = texter?.code ?? "";
 
   const codeLetters = code.split("");
+
+  // The archetype the user guessed on the progress screen, if any.
+  const [guess] = useState(() => storageGet(GUESS_KEY));
+  const guessName = guess ? ARCHETYPES.find((a) => a.code === guess)?.name : undefined;
+  const nailedIt = !!code && guess === code;
 
   return (
     <motion.div
@@ -153,6 +161,19 @@ export function TexterTypeSlide({ data, dateRange }: Props) {
         >
           {description}
         </motion.p>
+
+        {guessName && code && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 1.35, type: "spring", stiffness: 260, damping: 16 }}
+            className={`-mt-2 mb-4 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-semibold ${
+              nailedIt ? "bg-white text-[#7C3AED]" : "bg-white/15 text-white/85"
+            }`}
+          >
+            {nailedIt ? "🎯 You called it! You guessed this one." : `You guessed ${guessName} — close, but no 😉`}
+          </motion.div>
+        )}
 
         {/* Trait badge rows sliding in from alternating directions */}
         {code && (

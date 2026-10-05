@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useState, useRef } from "react";
-import html2canvas from "html2canvas";
+import { useState, useRef, useMemo } from "react";
+import type { ReactNode } from "react";
 import { Download, X, Image, Images, FileImage } from "lucide-react";
 import type { WrappedData } from "../api/types";
 import { useSlideNavigation } from "../hooks/useSlideNavigation";
@@ -17,12 +17,41 @@ import { TopStickersSlide } from "./slides/TopStickersSlide";
 import { VocabularySlide } from "./slides/VocabularySlide";
 import { VibeAgeSlide } from "./slides/VibeAgeSlide";
 import { SummarySlide } from "./slides/SummarySlide";
+import { RhythmSlide } from "./slides/RhythmSlide";
+import { ReplySpeedSlide } from "./slides/ReplySpeedSlide";
+import { MediaMixSlide } from "./slides/MediaMixSlide";
+import { hasMediaMix, hasReplySpeed, hasRhythm } from "../lib/slideData";
 
-const SLIDE_NAMES = [
-  "total-sent", "peak-activity", "texter-type", "vibe-age",
-  "top-conversations", "conversation-starter", "streak",
-  "most-reacted", "emoji-personality", "top-stickers", "vocabulary", "summary",
-];
+interface SlideDef {
+  /** Used for download filenames. */
+  name: string;
+  /** Background brightness — decides the colour of the overlaid chrome. */
+  tone: "light" | "dark";
+  element: ReactNode;
+}
+
+/** The deck, in order. Slides whose data is missing (older results) are skipped. */
+function buildSlides(data: WrappedData): SlideDef[] {
+  const p = { data, dateRange: data.date_range };
+  const all: (SlideDef | false)[] = [
+    { name: "total-sent", tone: "light", element: <TotalSentSlide {...p} /> },
+    hasRhythm(data) && { name: "year-in-rhythm", tone: "light", element: <RhythmSlide {...p} /> },
+    { name: "peak-activity", tone: "light", element: <PeakActivitySlide {...p} /> },
+    hasReplySpeed(data) && { name: "reply-speed", tone: "light", element: <ReplySpeedSlide {...p} /> },
+    { name: "texter-type", tone: "dark", element: <TexterTypeSlide {...p} /> },
+    { name: "vibe-age", tone: "dark", element: <VibeAgeSlide {...p} /> },
+    { name: "top-conversations", tone: "light", element: <TopConversationsSlide {...p} /> },
+    { name: "conversation-starter", tone: "dark", element: <ConversationStarterSlide {...p} /> },
+    { name: "streak", tone: "dark", element: <StreakSlide {...p} /> },
+    { name: "most-reacted", tone: "dark", element: <MostReactedSlide {...p} /> },
+    hasMediaMix(data) && { name: "media-mix", tone: "light", element: <MediaMixSlide {...p} /> },
+    { name: "emoji-personality", tone: "light", element: <EmojiPersonalitySlide {...p} /> },
+    { name: "top-stickers", tone: "dark", element: <TopStickersSlide {...p} /> },
+    { name: "vocabulary", tone: "dark", element: <VocabularySlide {...p} /> },
+    { name: "summary", tone: "dark", element: <SummarySlide {...p} /> },
+  ];
+  return all.filter((s): s is SlideDef => !!s);
+}
 
 const variants = {
   enter: (dir: number) => ({ x: dir > 0 ? "100%" : "-100%", opacity: 0 }),
@@ -35,35 +64,25 @@ interface Props {
 }
 
 export function WrappedViewer({ data }: Props) {
-  const TOTAL_SLIDES = 12;
+  const slides = useMemo(() => buildSlides(data), [data]);
+  const TOTAL_SLIDES = slides.length;
+  const SLIDE_NAMES = slides.map((s) => s.name);
   const { current, direction, goNext, goPrev, setDirection, setCurrent } =
     useSlideNavigation({ totalSlides: TOTAL_SLIDES, autoAdvanceMs: 0 });
+  const tone = slides[current]?.tone ?? "dark";
 
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [captureProgress, setCaptureProgress] = useState({ done: 0, total: 0 });
   const slideAreaRef = useRef<HTMLDivElement>(null);
 
-  const dr = data.date_range;
-
-  const slides = [
-    <TotalSentSlide key="total" data={data} dateRange={dr} />,
-    <PeakActivitySlide key="peak" data={data} dateRange={dr} />,
-    <TexterTypeSlide key="texter" data={data} dateRange={dr} />,
-    <VibeAgeSlide key="vibe" data={data} dateRange={dr} />,
-    <TopConversationsSlide key="convos" data={data} dateRange={dr} />,
-    <ConversationStarterSlide key="starter" data={data} dateRange={dr} />,
-    <StreakSlide key="streak" data={data} dateRange={dr} />,
-    <MostReactedSlide key="reacted" data={data} dateRange={dr} />,
-    <EmojiPersonalitySlide key="emoji" data={data} dateRange={dr} />,
-    <TopStickersSlide key="stickers" data={data} dateRange={dr} />,
-    <VocabularySlide key="vocab" data={data} dateRange={dr} />,
-    <SummarySlide key="summary" data={data} dateRange={dr} />,
-  ];
-
   const captureElement = (el: HTMLElement, filename: string) =>
     new Promise<void>((resolve) => {
-      html2canvas(el, { scale: 2, useCORS: true, allowTaint: true, logging: false })
+      // Loaded on demand — keeps ~200 kB out of the initial bundle.
+      import("html2canvas")
+        .then(({ default: html2canvas }) =>
+          html2canvas(el, { scale: 2, useCORS: true, allowTaint: true, logging: false }),
+        )
         .then((canvas) => {
           canvas.toBlob((blob) => {
             if (blob) {
@@ -100,9 +119,9 @@ export function WrappedViewer({ data }: Props) {
 
   const downloadAllSlides = async () => {
     setShowDownloadMenu(false);
-    setCapturing(true);
     const el = slideAreaRef.current;
     if (!el) return;
+    setCapturing(true);
 
     for (let i = 0; i < TOTAL_SLIDES; i++) {
       setCurrent(i);
@@ -135,13 +154,17 @@ export function WrappedViewer({ data }: Props) {
     <div className="relative w-full h-full overflow-hidden bg-black select-none">
       {/* Progress bar */}
       <div className="absolute top-0 left-0 right-0 z-20 pt-[env(safe-area-inset-top)]">
-        <ProgressBar total={TOTAL_SLIDES} current={current} />
+        <ProgressBar total={TOTAL_SLIDES} current={current} tone={tone} className="pr-14" />
       </div>
 
       {/* Download button — top right */}
       <button
         onClick={(e) => { e.stopPropagation(); setShowDownloadMenu((v) => !v); }}
-        className="absolute top-3 right-3 z-30 w-8 h-8 flex items-center justify-center rounded-full bg-black/30 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/50 transition-all"
+        className={`absolute top-3 right-3 z-30 w-8 h-8 flex items-center justify-center rounded-full backdrop-blur-sm transition-all ${
+          tone === "light"
+            ? "bg-[#0288D1]/10 text-[#0288D1] hover:bg-[#0288D1]/20"
+            : "bg-black/30 text-white/70 hover:text-white hover:bg-black/50"
+        }`}
         style={{ top: "calc(env(safe-area-inset-top) + 10px)" }}
       >
         {showDownloadMenu ? <X className="w-4 h-4" /> : <Download className="w-4 h-4" />}
@@ -181,7 +204,7 @@ export function WrappedViewer({ data }: Props) {
               <Images className="w-4 h-4 text-[#29B6F6] shrink-0" />
               <span>
                 Download All Slides
-                <span className="block text-white/40 text-xs font-normal">12 PNG files</span>
+                <span className="block text-white/40 text-xs font-normal">{TOTAL_SLIDES} PNG files</span>
               </span>
             </button>
           </motion.div>
@@ -225,12 +248,16 @@ export function WrappedViewer({ data }: Props) {
             onDragEnd={handleDragEnd}
             className="absolute inset-0"
           >
-            {slides[current]}
+            {slides[current]?.element}
           </motion.div>
         </AnimatePresence>
       </div>
 
-      <div className="absolute bottom-4 left-0 right-0 z-20 text-center text-white/30 text-xs pb-[env(safe-area-inset-bottom)]">
+      <div
+        className={`absolute bottom-4 left-0 right-0 z-20 text-center text-xs pb-[env(safe-area-inset-bottom)] pointer-events-none transition-colors duration-300 ${
+          tone === "light" ? "text-gray-400/80" : "text-white/40"
+        }`}
+      >
         {capturing ? "" : "Tap or swipe to navigate"}
       </div>
     </div>

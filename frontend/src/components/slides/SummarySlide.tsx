@@ -1,29 +1,16 @@
 import { motion } from "framer-motion";
-import { Send, MessageSquare, Users, Clock, Smile, Share2 } from "lucide-react";
-import html2canvas from "html2canvas";
+import type { Variants } from "framer-motion";
+import { Send, MessageSquare, Users, Clock, Smile, Share2, CalendarCheck, Zap } from "lucide-react";
 import type { WrappedData, DateRange } from "../../api/types";
+import { ChatAvatar } from "../ChatAvatar";
+import { formatDuration, formatHour } from "../../lib/format";
 
 interface Props {
   data: WrappedData;
   dateRange: DateRange;
 }
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-function formatHour(h: number): string {
-  const suffix = h >= 12 ? "PM" : "AM";
-  const hour12 = h % 12 || 12;
-  return `${hour12} ${suffix}`;
-}
-
-const cardVariants = {
+const cardVariants: Variants = {
   hidden: { opacity: 0, y: 20, scale: 0.95 },
   show: (i: number) => ({
     opacity: 1,
@@ -36,6 +23,9 @@ const cardVariants = {
 export function SummarySlide({ data, dateRange }: Props) {
   const topChat = data.top_chats[0];
   const topEmoji = data.top_emojis[0];
+  const activeDays = data.active_days ?? 0;
+  const replySpeed = data.reply_speed && data.reply_speed.samples > 0 ? data.reply_speed : null;
+  const extraCards = (activeDays > 0 ? 1 : 0) + (replySpeed ? 1 : 0);
 
   return (
     <motion.div
@@ -89,9 +79,11 @@ export function SummarySlide({ data, dateRange }: Props) {
             {topChat && (
               <>
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">
-                    {initials(topChat.name)}
-                  </div>
+                  <ChatAvatar
+                    name={topChat.name}
+                    avatar={topChat.avatar}
+                    className="w-7 h-7 text-[10px] ring-2 ring-white/30"
+                  />
                   <p className="text-sm font-bold text-white truncate">
                     {topChat.name}
                   </p>
@@ -128,6 +120,30 @@ export function SummarySlide({ data, dateRange }: Props) {
               </>
             )}
           </motion.div>
+
+          {activeDays > 0 && (
+            <motion.div custom={4} variants={cardVariants} initial="hidden" animate="show"
+              className={`bg-white/10 backdrop-blur rounded-2xl p-4 flex flex-col ${extraCards === 1 ? "col-span-2" : ""}`}
+            >
+              <CalendarCheck className="w-5 h-5 text-white/50 mb-2" />
+              <p className="text-xs text-white/50 uppercase tracking-widest mb-1">Active</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white leading-none mb-1">{activeDays}</p>
+              <p className="text-xs text-white/70">days texting</p>
+            </motion.div>
+          )}
+
+          {replySpeed && (
+            <motion.div custom={5} variants={cardVariants} initial="hidden" animate="show"
+              className={`bg-white/10 backdrop-blur rounded-2xl p-4 flex flex-col ${extraCards === 1 ? "col-span-2" : ""}`}
+            >
+              <Zap className="w-5 h-5 text-white/50 mb-2" />
+              <p className="text-xs text-white/50 uppercase tracking-widest mb-1">Reply Speed</p>
+              <p className="text-2xl sm:text-3xl font-bold text-white leading-none mb-1">
+                {formatDuration(replySpeed.median_seconds)}
+              </p>
+              <p className="text-xs text-white/70">typical reply</p>
+            </motion.div>
+          )}
         </div>
 
         <motion.button
@@ -137,6 +153,7 @@ export function SummarySlide({ data, dateRange }: Props) {
           onClick={async () => {
             const el = document.getElementById("share-card");
             if (!el) return;
+            const { default: html2canvas } = await import("html2canvas");
             const canvas = await html2canvas(el, { backgroundColor: null, scale: 2 });
             canvas.toBlob((blob) => {
               if (!blob) return;

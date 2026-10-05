@@ -1,4 +1,4 @@
-import type { WrappedData } from "./types";
+import type { SSEProgress, WrappedData } from "./types";
 
 const API_BASE = "/api";
 
@@ -54,8 +54,30 @@ export async function startPipeline(sessionId: string) {
   return res.json() as Promise<{ status: string }>;
 }
 
+/** Thrown when the backend no longer knows the session (expired / server restart). */
+export class SessionExpiredError extends Error {
+  constructor() {
+    super("Your session has expired. Please start again.");
+    this.name = "SessionExpiredError";
+  }
+}
+
+export function progressUrl(sessionId: string) {
+  return `${API_BASE}/wrapped/progress/${encodeURIComponent(sessionId)}`;
+}
+
 export async function fetchResult(sessionId: string): Promise<WrappedData> {
-  const res = await fetch(`${API_BASE}/wrapped/result/${sessionId}`);
-  if (!res.ok) throw new Error(`Result not ready: ${res.status}`);
+  const res = await fetch(`${API_BASE}/wrapped/result/${encodeURIComponent(sessionId)}`);
+  if (res.status === 404) throw new SessionExpiredError();
+  // The backend answers 202 while the pipeline is still running.
+  if (res.status !== 200) throw new Error(`Result not ready: ${res.status}`);
+  return res.json();
+}
+
+/** Latest pipeline progress, polled once. Throws SessionExpiredError on 404. */
+export async function fetchStatus(sessionId: string): Promise<SSEProgress> {
+  const res = await fetch(`${API_BASE}/wrapped/status/${encodeURIComponent(sessionId)}`);
+  if (res.status === 404) throw new SessionExpiredError();
+  if (!res.ok) throw new Error(`Status failed: ${res.status}`);
   return res.json();
 }

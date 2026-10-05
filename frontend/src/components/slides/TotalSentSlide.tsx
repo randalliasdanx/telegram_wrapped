@@ -1,31 +1,34 @@
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { useEffect, useState } from "react";
-import { MessageSquare, BarChart3 } from "lucide-react";
+import { motion } from "framer-motion";
+import { MessageSquare, BarChart3, CalendarCheck, Users, ShieldCheck, Sigma } from "lucide-react";
 import type { WrappedData, DateRange } from "../../api/types";
+import { AnimatedNumber } from "../AnimatedNumber";
+import { formatNumber } from "../../lib/format";
 
 interface Props {
   data: WrappedData;
   dateRange: DateRange;
 }
 
-function AnimatedCounter({ value }: { value: number }) {
-  const motionValue = useMotionValue(0);
-  const spring = useSpring(motionValue, { duration: 2000, bounce: 0 });
-  const display = useTransform(spring, (v) =>
-    Math.round(v).toLocaleString("en-US"),
+function AccuracyBadge({ accuracy }: { accuracy: NonNullable<WrappedData["accuracy"]> }) {
+  const exact = accuracy.mode === "exact";
+  const Icon = exact ? ShieldCheck : Sigma;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: 1.7, type: "spring", stiffness: 240, damping: 18 }}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold mb-6 border ${
+        exact
+          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+          : "bg-sky-50 text-[#0288D1] border-sky-200"
+      }`}
+    >
+      <Icon className="w-3.5 h-3.5" />
+      {exact
+        ? "Exact count · every message analysed"
+        : `Estimated from ${Math.round(accuracy.coverage_pct)}% of messages`}
+    </motion.div>
   );
-  const [displayText, setDisplayText] = useState("0");
-
-  useEffect(() => {
-    motionValue.set(value);
-  }, [motionValue, value]);
-
-  useEffect(() => {
-    const unsubscribe = display.on("change", (v) => setDisplayText(v));
-    return unsubscribe;
-  }, [display]);
-
-  return <span>{displayText}</span>;
 }
 
 const bubblePositions = [
@@ -40,6 +43,13 @@ const bubblePositions = [
 ];
 
 export function TotalSentSlide({ data, dateRange }: Props) {
+  const activeDays = data.active_days ?? 0;
+  const stats = [
+    { label: "Per day", value: `~${formatNumber(data.daily_average)}`, icon: BarChart3 },
+    ...(activeDays > 0 ? [{ label: "Active days", value: formatNumber(activeDays), icon: CalendarCheck }] : []),
+    ...(data.total_chats ? [{ label: "Chats", value: formatNumber(data.total_chats), icon: Users }] : []),
+  ];
+
   return (
     <div className="w-full h-full bg-[#f8fafc] relative overflow-hidden flex flex-col items-center justify-center px-5">
       {/* Ambient background blobs */}
@@ -132,7 +142,7 @@ export function TotalSentSlide({ data, dateRange }: Props) {
               }}
               transition={{ delay: 2.2, duration: 0.8, ease: "easeOut" }}
             >
-              <AnimatedCounter value={data.grand_total} />
+              <AnimatedNumber value={data.grand_total} />
             </motion.span>
           </motion.div>
         </div>
@@ -141,38 +151,52 @@ export function TotalSentSlide({ data, dateRange }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6, duration: 0.4 }}
-          className="text-gray-700 text-lg md:text-xl mb-8"
+          className={`text-gray-700 text-lg md:text-xl ${data.accuracy ? "mb-3" : "mb-8"}`}
         >
           messages sent. You've been busy!
         </motion.p>
 
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.85, duration: 0.5, type: "spring", stiffness: 120, damping: 18 }}
-          whileHover={{ y: -3, boxShadow: "0 8px 32px rgba(2,136,209,0.12)" }}
-          className="bg-white rounded-2xl shadow-md p-5 w-full cursor-default"
-        >
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-              <BarChart3 className="w-5 h-5 text-[#0288D1]" />
-            </div>
-            <div>
-              <span className="text-xs uppercase tracking-widest text-gray-400 font-semibold">
-                Daily Average
-              </span>
-              <p className="text-xl font-bold text-gray-900 mt-0.5">
-                ~{data.daily_average} messages
-              </p>
-              <div className="flex items-center gap-1.5 mt-2">
-                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-                <span className="text-xs text-gray-500">
-                  That's a lot of chatting!
+        {data.accuracy && <AccuracyBadge accuracy={data.accuracy} />}
+
+        <div className={`grid gap-3 w-full ${stats.length >= 3 ? "grid-cols-3" : stats.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
+          {stats.map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.85 + i * 0.1, duration: 0.5, type: "spring", stiffness: 120, damping: 18 }}
+                whileHover={{ y: -3, boxShadow: "0 8px 32px rgba(2,136,209,0.12)" }}
+                className="bg-white rounded-2xl shadow-md p-3.5 cursor-default flex flex-col items-center text-center"
+              >
+                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center mb-2">
+                  <Icon className="w-[18px] h-[18px] text-[#0288D1]" />
+                </div>
+                <p className="text-xl font-bold text-gray-900 font-display leading-none">{stat.value}</p>
+                <span className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold mt-1.5 leading-tight">
+                  {stat.label}
                 </span>
-              </div>
-            </div>
-          </div>
-        </motion.div>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {activeDays > 0 && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.3, duration: 0.5 }}
+            className="text-xs text-gray-500 mt-4 flex items-center gap-1.5"
+          >
+            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+            {activeDays >= 300
+              ? "You barely took a day off."
+              : activeDays >= 180
+                ? "Most days, you had something to say."
+                : "You pick your moments."}
+          </motion.p>
+        )}
       </div>
     </div>
   );

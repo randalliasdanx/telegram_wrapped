@@ -1,24 +1,23 @@
 import { motion } from "framer-motion";
+import { Users } from "lucide-react";
 import type { WrappedData, DateRange } from "../../api/types";
+import { ChatAvatar } from "../ChatAvatar";
+import { formatNumber } from "../../lib/format";
 
 interface Props {
   data: WrappedData;
   dateRange: DateRange;
 }
 
-const AVATAR_COLORS = ["#0288D1", "#7C3AED", "#059669", "#E11D48", "#0F172A"];
-
-function getInitials(name: string): string {
-  return name.slice(0, 2).toUpperCase();
-}
-
 export function TopConversationsSlide({ data, dateRange }: Props) {
   const topFive = data.top_chats.slice(0, 5);
-  const maxCount = topFive[0]?.total ?? 1;
+  const maxCount = Math.max(1, ...topFive.map((c) => c.total));
+  // Newer results tell us how much of each chat was *you*; older ones don't.
+  const hasSplit = topFive.some((c) => c.sent_share != null && c.sent != null);
 
   return (
-    <div className="w-full h-full bg-white flex flex-col items-center justify-center px-5">
-      <div className="max-w-xl w-full mx-auto flex flex-col items-center">
+    <div className="w-full h-full bg-white overflow-y-auto overflow-x-hidden">
+      <div className="min-h-full max-w-xl w-full mx-auto flex flex-col items-center justify-center px-5 py-14">
         <motion.span
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -55,6 +54,7 @@ export function TopConversationsSlide({ data, dateRange }: Props) {
           {topFive.map((chat, i) => {
             const isFirst = i === 0;
             const barWidth = (chat.total / maxCount) * 100;
+            const youShare = Math.min(100, Math.max(0, chat.sent_share ?? 0));
 
             return (
               <motion.div
@@ -72,35 +72,49 @@ export function TopConversationsSlide({ data, dateRange }: Props) {
                   {i + 1}
                 </span>
 
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                  style={{ backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
-                >
-                  {getInitials(chat.name)}
-                </div>
+                <ChatAvatar name={chat.name} avatar={chat.avatar} index={i} className="w-10 h-10 text-xs" />
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline justify-between mb-1">
-                    <span className={`truncate ${
-                      isFirst ? "text-sm font-bold text-gray-900" : "text-sm font-medium text-gray-800"
-                    }`}>
-                      {chat.name}
-                    </span>
-                    <span className="text-xs text-gray-400 ml-2 shrink-0">
-                      {chat.pct}%
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`truncate ${
+                        isFirst ? "text-sm font-bold text-gray-900" : "text-sm font-medium text-gray-800"
+                      }`}>
+                        {chat.name}
+                      </span>
+                      {chat.is_group && (
+                        <span className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider text-[#0288D1] bg-[#0288D1]/10 rounded px-1.5 py-0.5">
+                          <Users className="w-2.5 h-2.5" />
+                          Group
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-400 shrink-0">
+                      {Math.round(chat.pct)}%
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-1.5">
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                     <motion.div
-                      className="h-1.5 rounded-full"
-                      style={{ backgroundColor: isFirst ? "#0288D1" : "#94a3b8" }}
+                      className="h-1.5 rounded-full flex overflow-hidden"
                       initial={{ width: 0 }}
                       animate={{ width: `${barWidth}%` }}
                       transition={{ delay: 0.6 + i * 0.1, duration: 0.6, ease: "easeOut" }}
-                    />
+                    >
+                      {hasSplit ? (
+                        <>
+                          <div className="h-full" style={{ width: `${youShare}%`, backgroundColor: isFirst ? "#0288D1" : "#64748b" }} />
+                          <div className="h-full flex-1" style={{ backgroundColor: isFirst ? "#81D4FA" : "#cbd5e1" }} />
+                        </>
+                      ) : (
+                        <div className="h-full w-full" style={{ backgroundColor: isFirst ? "#0288D1" : "#94a3b8" }} />
+                      )}
+                    </motion.div>
                   </div>
                   <span className="text-xs text-gray-400 mt-0.5 inline-block">
-                    {chat.total.toLocaleString()} messages
+                    {formatNumber(chat.total)} messages
+                    {chat.sent_share != null && hasSplit && (
+                      <> · <span className={isFirst ? "text-[#0288D1] font-semibold" : "text-gray-500 font-medium"}>you sent {Math.round(chat.sent_share)}%</span></>
+                    )}
                   </span>
                 </div>
               </motion.div>
@@ -108,11 +122,26 @@ export function TopConversationsSlide({ data, dateRange }: Props) {
           })}
         </div>
 
+        {hasSplit && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.1, duration: 0.5 }}
+            className="w-full flex items-center justify-between mt-3 text-[11px] text-gray-400"
+          >
+            <span>% = share of everything you sent</span>
+            <span className="flex items-center gap-2.5">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#0288D1]" />you</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#81D4FA]" />them</span>
+            </span>
+          </motion.div>
+        )}
+
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.2, duration: 0.5 }}
-          className="mt-6 text-xs uppercase tracking-widest text-gray-300 font-semibold"
+          className="mt-5 text-xs uppercase tracking-widest text-gray-300 font-semibold"
         >
           {dateRange.start} – {dateRange.end}
         </motion.p>
