@@ -1,0 +1,31 @@
+# Scaled deployment: stateless API replicas + Redis + one bot poller + nginx.
+#   cp .env.example backend/.env   # fill in TELEGRAM_* and SESSION_ENCRYPTION_KEY
+#   docker compose up --build --scale api=3
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]  # nothing persisted to disk
+
+  api:
+    build: ./backend
+    env_file: backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      RUN_BOT: "0"
+      TRUST_PROXY: "1"
+      STATS_WORKERS: "2"
+    depends_on: [redis]
+
+  bot:
+    build: ./backend
+    command: ["python", "-m", "app.bot"]
+    env_file: backend/.env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on: [redis]
+    profiles: ["bot"]  # enable with: docker compose --profile bot up
+
+  web:
+    build: ./frontend
+    ports: ["8080:80"]
+    depends_on: [api]

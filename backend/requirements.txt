@@ -6,3 +6,5 @@ python-dotenv
 scikit-learn
 numpy
 python-telegram-bot>=20.0
+cryptography
+redis>=5.0

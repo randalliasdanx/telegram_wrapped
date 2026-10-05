@@ -20,7 +20,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.bot import start_bot, stop_bot
 from app.routers import auth, wrapped
-from app.telegram_service import start_cleanup_task
+from app.jobs import scheduler
+from app.telegram_service import shutdown as shutdown_sessions, start_cleanup_task
 
 log = logging.getLogger("wrapped.main")
 log.info("TELEGRAM_API_ID loaded: %s", "yes" if os.environ.get("TELEGRAM_API_ID") else "NO")
@@ -58,6 +59,8 @@ async def on_startup() -> None:
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
+    await scheduler.shutdown()
+    await shutdown_sessions()
     await stop_bot()
 
 

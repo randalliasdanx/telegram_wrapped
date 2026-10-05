@@ -5,21 +5,17 @@ Responsibilities:
 - Notify users via bot message when their Wrapped is ready
 
 Usage:
-  Set BOT_TOKEN in .env
+  Set BOT_TOKEN in .env (set RUN_BOT=0 on all but one instance when scaling out)
   Set APP_URL to your deployed frontend URL (e.g. https://telegramwrapped.com)
   The bot starts automatically on FastAPI startup if BOT_TOKEN is set.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from typing import Any
 
 log = logging.getLogger("wrapped.bot")
-
-# session_id -> chat_id mapping (in-memory for v1)
-_session_to_chat: dict[str, int] = {}
 
 _app: Any = None  # telegram.ext.Application instance
 
@@ -31,48 +27,54 @@ async def _start_command(update: Any, context: Any) -> None:
     at t.me/BotUsername?start=SESSION_ID. Telegram passes SESSION_ID as
     the first argument to /start.
     """
-    from app.telegram_service import get_session
+    from app.telegram_service import get_meta, get_progress, get_result, set_bot_chat
 
     chat_id = update.effective_chat.id
     args = context.args or []
 
-    if args:
-        session_id = args[0].strip()
-        _session_to_chat[session_id] = chat_id
-        # Also store on the session object so the pipeline completion handler can use it
-        session = get_session(session_id)
-        if session is not None:
-            session.bot_chat_id = chat_id
-            log.info("Bot: registered chat_id=%d for session %s***", chat_id, session_id[:8])
-            await update.message.reply_text(
-                "You're all set! 🎉\n\n"
-                "We'll send you a message right here when your Telegram Wrapped is ready. "
-                "You can close the browser tab now.",
-            )
-        else:
-            log.warning("Bot: /start with unknown session %s***", session_id[:8])
-            await update.message.reply_text(
-                "This link has expired or is invalid. Please restart from the website.",
-            )
-    else:
+    if not args:
         await update.message.reply_text(
             "👋 Welcome to Telegram Wrapped!\n\n"
             "Head to our website to get started and we'll ping you here when your results are ready.",
         )
+        return
+
+    session_id = args[0].strip()
+    if await get_result(session_id) is not None:
+        frontend_url = os.environ.get("FRONTEND_URL", "")
+        link = f"{frontend_url}?session={session_id}" if frontend_url else "the website"
+        await update.message.reply_text(f"Your Telegram Wrapped is already ready! 🎉\n\n{link}")
+        return
+    if await get_meta(session_id) is None and await get_progress(session_id) is None:
+        log.warning("Bot: /start with unknown session %s***", session_id[:8])
+        await update.message.reply_text(
+            "This link has expired or is invalid. Please restart from the website.",
+        )
+        return
+
+    await set_bot_chat(session_id, chat_id)
+    log.info("Bot: registered a chat for session %s***", session_id[:8])
+    await update.message.reply_text(
+        "You're all set! 🎉\n\n"
+        "We'll send you a message right here when your Telegram Wrapped is ready. "
+        "You can close the browser tab now.",
+    )
 
 
 async def notify_user(session_id: str, result_url: str) -> bool:
     """Send result notification to a user who pre-started the bot.
 
-    Returns True if the message was sent successfully.
+    Uses the stateless Bot API over HTTP, so any API instance can notify
+    regardless of which instance runs the polling loop.
     """
     bot_token = os.environ.get("BOT_TOKEN", "")
     if not bot_token:
         return False
 
-    chat_id = _session_to_chat.get(session_id)
+    from app.telegram_service import get_bot_chat
+
+    chat_id = await get_bot_chat(session_id)
     if chat_id is None:
-        log.info("Bot: no chat_id registered for session %s*** — skipping notification", session_id[:8])
         return False
 
     try:
@@ -86,7 +88,7 @@ async def notify_user(session_id: str, result_url: str) -> bool:
                     f"See your results here: {result_url}"
                 ),
             )
-        log.info("Bot: notified chat_id=%d for session %s***", chat_id, session_id[:8])
+        log.info("Bot: notified session %s***", session_id[:8])
         return True
     except Exception as e:
         log.warning("Bot: failed to notify session %s***: %s", session_id[:8], e)
@@ -100,6 +102,10 @@ async def start_bot() -> None:
     bot_token = os.environ.get("BOT_TOKEN", "")
     if not bot_token:
         log.info("BOT_TOKEN not configured — bot will not start")
+        return
+    if os.environ.get("RUN_BOT", "1") == "0":
+        # Only one instance may poll Telegram for bot updates
+        log.info("RUN_BOT=0 — bot polling disabled on this instance")
         return
 
     try:
@@ -130,3 +136,28 @@ async def stop_bot() -> None:
         log.warning("Error stopping bot: %s", e)
     finally:
         _app = None
+
+
+async def _run_forever() -> None:
+    from dotenv import load_dotenv
+    from pathlib import Path
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+    os.environ["RUN_BOT"] = "1"
+    await start_bot()
+    if _app is None:
+        raise SystemExit("Bot did not start (is BOT_TOKEN set?)")
+    try:
+        import asyncio
+
+        await asyncio.Event().wait()
+    finally:
+        await stop_bot()
+
+
+if __name__ == "__main__":
+    # Standalone bot process for scaled deployments: `python -m app.bot`
+    import asyncio
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    asyncio.run(_run_forever())

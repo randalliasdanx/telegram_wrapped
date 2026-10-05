@@ -11,8 +11,11 @@ Telegram Wrapped is a "Spotify Wrapped"-style stats app for Telegram. Users auth
 ### Backend (from `backend/`)
 ```bash
 uvicorn app.main:app --reload   # Dev server on :8000
+pip install -r requirements-dev.txt
 pytest                          # Run all tests
 pytest tests/test_pipeline.py::test_name  # Run a single test
+python -m scripts.live_check --verify 3   # Run against your own account
+python -m app.bot               # Standalone bot poller (scaled deployments)
 ```
 
 ### Frontend (from `frontend/`)
@@ -27,31 +30,34 @@ Copy `.env.example` to `backend/.env` and fill in:
 - `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` — from https://my.telegram.org (required)
 - `APP_ENV=development` (controls CORS and HSTS)
 - `CORS_ORIGIN` — used in production only
+- `REDIS_URL` + `SESSION_ENCRYPTION_KEY` — required for multi-instance deployments (see `docker-compose.yml`)
+- Pacing/limits: `TG_*`, `MAX_CONCURRENT_PIPELINES`, `STATS_WORKERS`, `SESSION_TTL`, `RESULT_TTL` (documented in `.env.example`)
 
 ## Architecture
 
 ### Request Flow
 1. Frontend `AuthSlide` → `POST /api/auth/send-code` → creates a `UserSession` with a Telethon client, sends OTP
 2. `POST /api/auth/verify-code` → signs in the Telethon client, marks session authenticated
-3. `POST /api/wrapped/start` → spawns an async `asyncio.Task` running `run_pipeline()`
-4. `GET /api/wrapped/progress/{id}` (SSE) → streams `session.progress` updates until `phase=done`
-5. `GET /api/wrapped/result/{id}` → returns `WrappedData` JSON
+3. `POST /api/wrapped/start` → queues `run_pipeline()` on the instance's `JobScheduler`
+4. `GET /api/wrapped/progress/{id}` (SSE) → streams progress from the store until `phase=done|error`; `GET /api/wrapped/status/{id}` returns it once (polling fallback / resume)
+5. `GET /api/wrapped/result/{id}` → returns `WrappedData` JSON (from the store, valid for `RESULT_TTL`)
 
-### Session System (`backend/app/telegram_service.py`)
-Sessions are in-memory `UserSession` dataclasses keyed by UUID. Each session holds a `TelegramClient` whose SQLite session file lives in a `tempfile.mkdtemp()` directory. Sessions expire after 30 minutes (TTL enforced by a background cleanup task started at app startup). The cleanup loop skips sessions whose `pipeline_task` is still running.
+### Session System (`backend/app/telegram_service.py`, `backend/app/store.py`)
+Sessions are Telethon `StringSession`s, Fernet-encrypted and stored in a shared `Store` (`MemoryStore` by default, `RedisStore` when `REDIS_URL` is set — then any API instance/worker can serve any request). Keys: `session:{id}` (phone, code hash, encrypted secret), `progress:{id}`, `result:{id}`, `botchat:{id}`, rate-limit counters. Connected clients are cached per process and disconnected when idle. After a successful pipeline the Telegram authorization is revoked (`log_out`) and the secret deleted; unused logins are revoked by `_cleanup_loop` after `SESSION_TTL` (expiry claimed atomically via a sorted set, skipping sessions whose progress is still live). Results live for `RESULT_TTL`.
 
-### Data Pipeline (`backend/app/pipeline.py`)
-Four phases run sequentially via `_run_phases()`:
+### Jobs (`backend/app/jobs.py`)
+`JobScheduler` caps concurrent pipelines per instance (`MAX_CONCURRENT_PIPELINES`); waiting users get `phase=queued` with `queue_position`. `routers/wrapped.py` heartbeats progress every 20 s; progress older than 180 s in an active phase is reported as an error (worker died).
 
-- **Phase 1a** – Count lifetime message totals for all User/Chat dialogs (not Channels) using `get_messages(limit=0)`.
-- **Phase 1b** – Refine to yearly counts using `SearchRequest` with `min_date`, then re-sort by yearly count.
-- **Phase 2** – Fetch media type breakdowns per dialog using a single `GetSearchCountersRequest` (8 media types in one call).
-- **Phase 3** – Adaptively sample messages month-by-month (200–1000 msgs/month per dialog scaled by chat size). Only the user's own messages (`from_id == my_id`) go into `all_sampled`; both sides go into `all_samples_unfiltered` (used for conversation-starter and streak detection).
-- **Phase 4** – Compute statistics: top chats, hourly distribution, peak personality, streak, most-reacted message, text analysis (LLR + TF-IDF phrase extraction), sticker counts, and ML classification.
-
-The pipeline tries **Takeout mode** first (3–5× faster, relaxed rate limits); falls back to standard API on failure. Rate limiting is handled by `_Throttle` (semaphore + shared flood-wait event).
-
-Dialog weighting in Phase 4: `weight = (yearly_total × user_fraction) / sampled_count` where `user_fraction = sampled_count / total_sampled`. This estimates the user's real yearly message count per dialog without double-counting both parties.
+### Data Pipeline (`backend/app/pipeline.py`, `fetcher.py`, `stats.py`, `throttle.py`)
+- **Dialog selection** (`fetcher.select_candidate_dialogs`): private chats with humans, basic groups and **supergroups** (`Channel.megagroup`). Broadcast channels, bots, Saved Messages and service chats (777000) are skipped.
+- **Count**: one `messages.search(from_id=InputPeerSelf, min_date, max_date)` per dialog → exact number of messages the user sent + newest 100.
+- **Read** (`plan_fetch`): if all remaining pages fit `TG_PAGE_BUDGET` → exact mode (every sent message, split into time windows for parallelism). Otherwise estimated mode: pages proportional to chat size over ≤52 time windows; each window's exact count gives per-message `weight = window_count / fetched`.
+- **Conversations**: both-sides totals (`limit=1` search) for the top 12 chats; 6 contiguous `get_messages(offset_date=…)` windows for the top 8 private chats → reply speed and conversation starts (only transitions *inside* a batch count).
+- **Stats** (`stats.compute_stats`, pure, runs in a thread or process pool via `STATS_WORKERS`): grand total = Σ exact sent counts; hourly/weekday/monthly distributions from weighted records (local time with minute-precision `utc_offset_minutes`); busiest day, active days and streaks from exactly-fetched windows; media/sticker totals from the user's messages; phrases via `text_analysis._process_text_batch` (subsampled above 25k texts); ML on records (per-chat features capped at 3k records).
+- **Throttle** (`AdaptiveThrottle`): AIMD concurrency, shared pause on `FLOOD_WAIT`, retries, and a soft deadline (`TG_FETCH_DEADLINE`) after which optional requests raise `BudgetExceeded` and the pipeline degrades to estimates instead of stalling. Counting calls are `essential=True`.
+- **Takeout** is used only if Telegram grants it immediately (`TAKEOUT_MAX_WAIT`, default 0); searches fall back to the normal client if the server rejects them inside takeout.
+- Every result includes `accuracy` (mode, coverage %, messages analysed, API calls, duration).
+- `tests/fake_telegram.py` emulates `messages.search`/`get_messages` with ground truth; `tests/test_fetch_pipeline.py` checks exactness, call counts, estimates, flood waits and deadlines. `scripts/live_check.py` runs against a real account.
 
 ### ML Pipeline (`backend/app/ml/`)
 All classifiers are **purely deterministic** — no sklearn inference at runtime.
@@ -61,7 +67,7 @@ All classifiers are **purely deterministic** — no sklearn inference at runtime
 - **`vibe_age.py`** — Estimates "texting vibe age" (13–75) from 9 linguistic features using weighted z-scores against stats in `models/vibe_age_stats.json`.
 - **`models/`** — JSON files: `personality_types.json` (display names/descriptions for 16 codes), `vibe_age_stats.json` (population mean/std), `background_bigrams.json` (Google n-gram corpus for TF-IDF distinctiveness), `archetype_meta.json`, `conversation_starter_meta.json`.
 
-### Phrase Extraction (`pipeline._process_text_batch`)
+### Phrase Extraction (`text_analysis._process_text_batch`, re-exported from `pipeline`)
 Uses **LLR (log-likelihood ratio) × TF-IDF distinctiveness × length bonus** to rank 2–5 word phrases. Background bigrams from `background_bigrams.json` dampen generic English phrases. Deduplication prefers longer phrases over sub-phrases.
 
 ### Frontend (`frontend/src/`)
@@ -74,10 +80,10 @@ Uses **LLR (log-likelihood ratio) × TF-IDF distinctiveness × length bonus** to
 - **`api/types.ts`** — TypeScript types mirroring `backend/app/schemas.py`
 
 ### Rate Limiting
-`telegram_service.py` has a simple in-memory rate limiter for `POST /auth/send-code`: 10 requests per IP per 10-minute window (configurable via `RATE_LIMIT_SEND_CODE` env var).
+`check_send_code_rate` (store-backed, shared across instances) limits `POST /auth/send-code` to `RATE_LIMIT_SEND_CODE` (10) per IP and `RATE_LIMIT_SEND_CODE_PHONE` (3) per phone number per 10 minutes. Set `TRUST_PROXY=1` behind your own proxy to use `X-Forwarded-For`.
 
 ## Key Constraints
-- Telethon sessions are not persistent across server restarts (in-memory only).
+- Without `REDIS_URL`, sessions/results are in-memory and lost on restart.
 - 2FA (cloud password) is not supported — users must temporarily disable it.
-- Only `User` and `Chat` entity types are processed; `Channel` dialogs are skipped.
-- The `top_chats` stat uses avatar images (base64) from the pipeline, while `top_stickers` downloads thumbnails via `_download_sticker_thumbnails`.
+- Broadcast channels are skipped; supergroups are included.
+- `top_chats` (top 5) get base64 avatars and `top_stickers` base64 thumbnails via `pipeline._attach_images` (best effort, 15 s budget).

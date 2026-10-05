@@ -31,3 +31,4 @@ DataExport_*/
 
 # Claude memory
 .claude/
+live_result.json

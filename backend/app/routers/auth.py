@@ -1,15 +1,27 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from app.telegram_service import (
+    check_send_code_rate,
     create_session,
-    get_send_code_rate,
     verify_session,
 )
+
+TRUST_PROXY = os.environ.get("TRUST_PROXY", "0") == "1"
+
+
+def client_ip(request: Request) -> str:
+    if TRUST_PROXY:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
 
 log = logging.getLogger("wrapped.auth")
 
@@ -38,28 +50,25 @@ class VerifyCodeResponse(BaseModel):
 
 @router.post("/auth/send-code", response_model=SendCodeResponse)
 async def send_code(body: SendCodeRequest, request: Request) -> SendCodeResponse:
-    client_ip = request.client.host if request.client else "unknown"
-    log.info("send-code request from %s for phone: %s", client_ip, body.phone[:6] + "***")
+    ip = client_ip(request)
+    log.info("send-code request from %s for phone: %s", ip, body.phone[:4] + "***")
 
-    if not get_send_code_rate(client_ip):
+    if not await check_send_code_rate(ip, body.phone):
         raise HTTPException(429, "Too many code requests. Try again in a few minutes.")
 
     try:
-        session = await create_session(body.phone)
+        session_id, phone_code_hash = await create_session(body.phone)
     except ValueError as e:
         log.warning("Validation error: %s", e)
         raise HTTPException(400, str(e))
     except RuntimeError as e:
         log.error("Config error: %s", e)
-        raise HTTPException(500, str(e))
-    except Exception as e:
+        raise HTTPException(500, "Server is not configured correctly")
+    except Exception:
         log.exception("Failed to send code")
-        raise HTTPException(500, f"Failed to send code: {type(e).__name__}: {e}")
+        raise HTTPException(502, "Could not reach Telegram. Please try again.")
 
-    return SendCodeResponse(
-        session_id=session.session_id,
-        phone_code_hash=session.phone_code_hash,
-    )
+    return SendCodeResponse(session_id=session_id, phone_code_hash=phone_code_hash)
 
 
 @router.post("/auth/verify-code", response_model=VerifyCodeResponse)
@@ -72,6 +81,6 @@ async def verify_code(body: VerifyCodeRequest) -> VerifyCodeResponse:
     except ValueError as e:
         log.warning("Verify error: %s", e)
         raise HTTPException(400, str(e))
-    except Exception as e:
+    except Exception:
         log.exception("Verification failed")
-        raise HTTPException(500, f"Verification failed: {type(e).__name__}: {e}")
+        raise HTTPException(502, "Verification failed. Please try again.")
