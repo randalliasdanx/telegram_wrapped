@@ -150,3 +150,12 @@ async def test_expiry_sweeper_spares_running_pipelines(backend, monkeypatch):
     await svc._cleanup_once()
     assert revoked == ["idle"]
     assert await st.claim_due(now + 301) == ["running"]  # pushed back, not dropped
+
+
+async def test_missing_credentials_give_clear_error(backend, monkeypatch):
+    client, _, _ = backend
+    monkeypatch.setenv("TELEGRAM_API_ID", "")
+    monkeypatch.setenv("TELEGRAM_API_HASH", "")
+    r = await client.post("/api/auth/send-code", json={"phone": "+15551234567"})
+    assert r.status_code == 500
+    assert "TELEGRAM_API_ID" in r.json()["detail"]

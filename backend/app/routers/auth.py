@@ -63,7 +63,7 @@ async def send_code(body: SendCodeRequest, request: Request) -> SendCodeResponse
         raise HTTPException(400, str(e))
     except RuntimeError as e:
         log.error("Config error: %s", e)
-        raise HTTPException(500, "Server is not configured correctly")
+        raise HTTPException(500, "Telegram API credentials are missing on the server. Set TELEGRAM_API_ID and TELEGRAM_API_HASH in backend/.env and restart.")
     except Exception:
         log.exception("Failed to send code")
         raise HTTPException(502, "Could not reach Telegram. Please try again.")

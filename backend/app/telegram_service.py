@@ -40,8 +40,9 @@ _RATE_WINDOW = 600
 
 
 def _get_api_credentials() -> tuple[int, str]:
-    api_id = int(os.environ.get("TELEGRAM_API_ID", "0"))
-    api_hash = os.environ.get("TELEGRAM_API_HASH", "")
+    raw_id = os.environ.get("TELEGRAM_API_ID", "").strip()
+    api_hash = os.environ.get("TELEGRAM_API_HASH", "").strip()
+    api_id = int(raw_id) if raw_id.isdigit() else 0
     if api_id == 0 or not api_hash:
         raise RuntimeError(
             "TELEGRAM_API_ID and TELEGRAM_API_HASH must be set in environment / .env file"

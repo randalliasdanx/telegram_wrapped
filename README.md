@@ -11,7 +11,15 @@ Try the UI without Telegram: run the frontend and open `/?demo=1`.
 <img src="docs/screenshots/slide-07-top-conversations.webp" width="190" alt="Top conversations">
 </p>
 
-## Quick start (development)
+## Quick start
+
+```bash
+./dev.sh    # installs everything, asks for your API ID/hash once, starts both servers
+```
+
+Then open http://localhost:5173 and log in whenever you're ready (or `/?demo=1` for the demo deck). Needs Python 3.10+ and Node 18+; API credentials come from https://my.telegram.org.
+
+## Manual setup (development)
 
 ```bash
 cp .env.example backend/.env          # fill in TELEGRAM_API_ID / TELEGRAM_API_HASH
